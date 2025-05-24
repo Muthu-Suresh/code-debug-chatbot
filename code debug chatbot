@@ -1,0 +1,79 @@
+import random
+import numpy as np
+import json
+import os
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
+from tensorflow.keras.optimizers import Adam
+
+# Ensure dataset file exists
+dataset_path = "C://Users//muthu//Downloads//debug_bot_dataset.json"
+if not os.path.exists(dataset_path):
+    raise FileNotFoundError(f"Dataset file '{dataset_path}' not found. Please check the file path.")
+
+# Load dataset
+with open(dataset_path, "r") as f:
+    dataset = json.load(f)
+
+# Mapping errors to unique indices
+error_list = list(set(entry['error'] for entry in dataset))
+error_to_index = {error: idx for idx, error in enumerate(error_list)}
+index_to_solution = {entry['error']: entry['solution'] for entry in dataset}
+
+# Q-learning setup
+num_errors = len(error_to_index)
+Q_table = np.zeros((num_errors, num_errors))  # Ensures correct shape
+
+# Hyperparameters
+learning_rate = 0.1
+discount_factor = 0.9
+epsilon = 1.0  # Exploration-exploitation tradeoff
+epsilon_decay = 0.995
+epsilon_min = 0.01
+episodes = 1000
+# Training RL agent
+for episode in range(episodes):
+    error_idx = random.randint(0, num_errors - 1)
+    done = False
+    while not done:
+        if random.uniform(0, 1) < epsilon:
+            action = random.randint(0, num_errors - 1)  # Explore
+        else:
+            action = np.argmax(Q_table[error_idx])  # Exploit best action
+        
+        reward = 1 if action == error_idx else -1  # Correct fix gets +1, wrong gets -1
+        
+        # Update Q-table
+        Q_table[error_idx, action] = Q_table[error_idx, action] + learning_rate * (
+            reward + discount_factor * np.max(Q_table[action]) - Q_table[error_idx, action]
+        )
+        
+        if reward == 1:
+            done = True
+    
+    epsilon = max(epsilon_min, epsilon * epsilon_decay)  # Decay exploration
+
+# Debug Bot Function
+def debug_bot():
+    language = input("Enter programming language (Python, C, C++, Java): ")
+    error_message = input("Paste your error message: ")
+    
+    if error_message in error_to_index:
+        error_idx = error_to_index[error_message]
+        if error_idx >= Q_table.shape[0]:  # Prevents out-of-bounds access
+            return "Internal Error: Invalid index mapping."
+        
+        best_action = np.argmax(Q_table[error_idx])
+        return f"Language: {language}\nError: {error_message}\nSolution: {index_to_solution.get(error_message, 'Solution not found in dataset.')}"
+    
+    return "Error not found in dataset. Try checking documentation."
+
+# Debugging Info
+print("Number of errors:", num_errors)
+print("Q-table shape:", Q_table.shape)
+print("Error-to-Index Mapping:", error_to_index)
+
+# Start Debug Bot
+print(debug_bot())
